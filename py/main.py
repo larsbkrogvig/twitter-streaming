@@ -1,8 +1,18 @@
+# -*- coding: utf-8 -*-
+# python 2
+
 import os
 import ConfigParser
 import tweepy
 import time
 import json
+import re
+from collections import Counter
+
+
+common_words = [
+    'https'
+]
 
 
 class StandardListener(tweepy.StreamListener):
@@ -11,6 +21,31 @@ class StandardListener(tweepy.StreamListener):
     def on_data(self, data):
         tweet = json.loads(data)
         print_tweet(tweet)
+
+    def on_error(self, status):
+        print status
+        return False # Returning False stops streaming
+
+class WordCountListener(tweepy.StreamListener):
+    """Listens to stream and prints everything"""
+
+    def __init__(self):
+        self.counter = Counter()
+
+    def on_data(self, data):
+
+        tweet = json.loads(data)
+
+        if tweet['lang'] == 'en':
+            text = tweet['text']
+            words = map(lambda x: x.lower(), re.findall('\w+', text))
+
+            for word in words:
+                if len(word) >= 4 and word not in common_words:
+                    self.counter[word] += 1
+
+            print_tweet(tweet)
+            print self.counter.most_common(10)
 
     def on_error(self, status):
         print status
@@ -68,25 +103,41 @@ def start_listening(stream, filter=None, simulate=True):
 
 
 def print_tweet(tweet):
+    """Prints a json tweet in a human-readable format"""
 
     header = '%s - %s' % (tweet['user']['name'], tweet['created_at'])
     body = '%s\n' % tweet['text']
     width = min(140, max(len(header), len(body)))
 
-    print header
+    print header, '(%s)' % tweet['lang']
     print '#' * width
     print '%s' % tweet['text']
     print '#' * width, '\n' * 2
+
+
+#def detect_squares(text, moves):
+#
+#    words #= map(lambda x: x.lower(), re.findall('\w+', text))
+#
+#    squares = [(i, '%s%i' % (w[0], len(w)))
+#               for i, w in enumerate(words)
+#               if w[0] in 'abcdefgh' and len[w] <= 8]
+#
+#    return squares
+
+
+def pick_move(text, moves):
+    return moves[hash(text) % len(moves)]
 
 
 def main():
 
     config = local_config()
     auth = twitter_authentication(config)
-    listener = StandardListener()
+    listener = WordCountListener()
     stream = tweepy.Stream(auth, listener)
 
-    start_listening(stream, ['chess'])
+    start_listening(stream, ['pizza'], simulate=False)
 
     pass
 
